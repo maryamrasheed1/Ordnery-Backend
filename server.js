@@ -9,15 +9,15 @@ import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 
-const app = express();
-const PORT = process.env.PORT || 5000;
-
-// ====== 1️⃣ Check Required Environment Variables ======
+// Validate environment variables before anything else
 [
   "MONGO_URI",
   "JWT_SECRET",
+  "EMAIL_GENERAL_USER",
+  "EMAIL_GENERAL_PASS",
   "EMAIL_VERIFICATION_USER",
-  "EMAIL_VERIFICATION_PASS"
+  "EMAIL_VERIFICATION_PASS",
+  "FRONTEND_URL"
 ].forEach((key) => {
   if (!process.env[key]) {
     console.error(`❌ Missing environment variable: ${key}`);
@@ -25,14 +25,21 @@ const PORT = process.env.PORT || 5000;
   }
 });
 
-// ====== 2️⃣ Secure CORS ======
+const app = express();
+
+// Middleware
+app.use(morgan("dev")); // Logs all requests
+app.use(express.json());
+
+// Secure & dynamic CORS
 const allowedOrigins = [
-  "https://theordnery.com", // live frontend
-  "http://localhost:5173",  // local dev
+  process.env.FRONTEND_URL, // Live frontend from .env
+  "http://localhost:5173"   // Local dev
 ];
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // allow health checks / server-to-server
+    if (!origin) return callback(null, true); // Allow server-to-server or health checks
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -41,29 +48,26 @@ app.use(cors({
   credentials: true,
 }));
 
-// ====== 3️⃣ Middleware ======
-app.use(express.json());
-app.use(morgan("dev")); // request logging
-
-// ====== 4️⃣ Routes ======
+// Routes
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/orders", orderRoutes);
 
-// Health check (used by Render)
+// Health check
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-// Helpful 404 JSON response
+// 404 JSON response
 app.use((req, res) => {
   res.status(404).json({ note: "No route matched", path: req.path, method: req.method });
 });
 
-// ====== 5️⃣ MongoDB Connection & Server Start ======
+// MongoDB connection & server start
 mongoose.set("strictQuery", true);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB Connected");
+    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {
@@ -71,12 +75,12 @@ mongoose
     process.exit(1);
   });
 
-// ====== 6️⃣ Global Error Handlers ======
+// Global error handlers
 process.on("uncaughtException", (err) => {
-  console.error("🚨 Uncaught Exception! 🚨", err);
+  console.error("🚨 Uncaught Exception!", err);
   process.exit(1);
 });
 process.on("unhandledRejection", (err) => {
-  console.error("🚨 Unhandled Rejection! 🚨", err);
+  console.error("🚨 Unhandled Rejection!", err);
   process.exit(1);
 });
